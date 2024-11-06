@@ -241,12 +241,14 @@ public class OcrActivity extends AppCompatActivity {
             recognizer.process(image)
                     .addOnSuccessListener(text -> {
                         String recognizedText = text.getText();
-                        Log.d("OcrActivity", "인식된 텍스트: " + recognizedText);
+                        Log.d("OcrActivity", "인식된 텍스트 (공백 제거 전): " + recognizedText);
 
                         // 생년월일, 이름, 주민등록번호, 신분증 발급일자 추출
                         String dob = findDateOfBirth(recognizedText);
                         String name = findName(recognizedText);
                         String ssn = findSSN(recognizedText);
+                        Log.d("OcrActivity", "주민등록번호 (공백 제거 후): " + ssn); // 공백 제거된 주민등록번호 로그
+
                         String issueDate = findIssueDate(recognizedText);
 
                         if (ssn != null) {
@@ -257,6 +259,7 @@ public class OcrActivity extends AppCompatActivity {
 
                         // 주민등록번호에 하이픈 추가
                         String ssnWithHyphen = addHyphenToSSN(ssn);
+                        Log.d("OcrActivity", "하이픈 추가된 주민등록번호: " + ssnWithHyphen); // 하이픈 추가 후 로그
 
                         runOnUiThread(() -> {
                             if (dob != null && !isMinor(dob) && issueDate != null) {
@@ -404,18 +407,20 @@ public class OcrActivity extends AppCompatActivity {
 
     // 주민등록번호 찾기 추가
     private String findSSN(String text) {
-        // 모든 공백 제거
-        text = text.replaceAll("\\s+", "");  // 공백 제거
+        // 전체 텍스트에서 모든 공백 제거
+        text = text.replaceAll("\\s+", "");  // 텍스트 전체의 공백 제거
 
-        // 주민등록번호 형식 (YYMMDD-XXXXXXX) 또는 공백과 하이픈이 포함된 형식도 허용
+        // 주민등록번호 형식 (YYMMDD-XXXXXXX) 또는 하이픈이 없는 형식도 허용
         Pattern ssnPattern = Pattern.compile("\\d{6}-?\\d{7}");
         Matcher ssnMatcher = ssnPattern.matcher(text);
 
         if (ssnMatcher.find()) {
-            return ssnMatcher.group(0).replace("-", ""); // 하이픈 제거
+            // 추출된 주민등록번호에서 하이픈과 공백 제거
+            return ssnMatcher.group(0).replace("-", "").replaceAll("\\s+", "");
         }
         return null;
     }
+
 
     // 생년월일 찾기 개선
     private String findDateOfBirth(String text) {
@@ -442,29 +447,37 @@ public class OcrActivity extends AppCompatActivity {
     }
     // 이름 찾기
     private String findName(String text) {
-        // 주민등록번호 패턴을 찾아서 그 위의 텍스트를 찾음
-        Pattern ssnPattern = Pattern.compile("\\d{6}-\\d{7}");
+        // 주민등록번호 패턴을 찾아서 그 위의 텍스트를 찾음 (공백 또는 하이픈 포함 허용)
+        Pattern ssnPattern = Pattern.compile("\\d{2}\\s?\\d{2}\\s?\\d{2}[-\\s]?\\d{7}");
         Matcher ssnMatcher = ssnPattern.matcher(text);
 
         if (ssnMatcher.find()) {
+            // 주민등록번호 위치를 기준으로 그 위의 텍스트 추출
             int ssnStartIndex = ssnMatcher.start();
             String textBeforeSSN = text.substring(0, ssnStartIndex).trim();
+
+            // 줄바꿈으로 텍스트 분리
             String[] lines = textBeforeSSN.split("\\n");
 
+            // 주민등록번호 바로 위의 줄이 이름으로 간주
             if (lines.length > 0) {
-                String possibleName = lines[lines.length - 1].trim();
+                String possibleName = lines[lines.length - 1].trim(); // 주민등록번호 바로 위의 줄
 
-                // 한글만 남기고 나머지 문자는 모두 제거
-                possibleName = possibleName.replaceAll("[^가-힣]", "");
+                // 이름 후보에서 괄호 및 괄호 안의 문자 제거 후 한글만 남김
+                possibleName = possibleName.replaceAll("\\([^)]*\\)", ""); // 괄호와 그 안의 내용 제거
+                possibleName = possibleName.replaceAll("[^가-힣]", ""); // 한글만 남김
 
-                // 이름이 비어 있지 않은 경우 반환
                 if (!possibleName.isEmpty()) {
+                    Log.d("OcrActivity", "추출된 이름: " + possibleName);
                     return possibleName;
                 }
             }
         }
+        Log.d("OcrActivity", "이름을 찾을 수 없음");
         return null;
     }
+
+
 
     // 신분증 발급일자 찾기 (주민등록증 및 운전면허증 구분)
     private String findIssueDate(String text) {
