@@ -337,7 +337,7 @@ public class OcrActivity extends AppCompatActivity {
                                     if (isIssueDateMatch) {
                                         nameComparisonResult.setText("2차 본인 인증이 완료되었습니다.");
                                         // FaceVerificationActivity로 이동
-                                        Intent intent = new Intent(OcrActivity.this, FaceVerificationActivity.class);
+                                        Intent intent = new Intent(OcrActivity.this,OrderSummaryActivity.class);
                                         startActivity(intent);
                                         finish();
                                     } else {
